@@ -35,7 +35,9 @@ endif
 _DEPS = src/fda-downloader.h
 #DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-.PHONY: clean
+.PHONY: clean all
+
+all: $(EXEFILE)
 
 _OBJ = fda-downloader.o $(OBJ_IMPL)
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
@@ -50,4 +52,4 @@ $(ODIR):
 	mkdir -p $(ODIR)
 
 clean:
-	rm -f $(ODIR)/*.o *~ core $(INCDIR)/*~ $(EXEFILE)
+	rm -f $(ODIR)/*.o *~ core src/*~ $(EXEFILE)

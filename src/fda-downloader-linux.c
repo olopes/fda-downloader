@@ -24,6 +24,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <termios.h>
+#include <sys/select.h>
+#include <sys/time.h>
 #include "fda-downloader.h"
 
 // ler isto para ver se consigo usar o select()
@@ -95,9 +97,13 @@ static int set_blocking (int fd, int should_block) {
 }
 
 /* API FUNCTIONS */
+struct fda_fd {
+	int fd;
+};
 
 int fda_init(struct fda_state* state) {
 	int fds;
+	struct fda_fd *ptr;
 	/* open and configure tty device */
 	fds = open(state->tty_device, O_RDWR | O_NOCTTY | O_NDELAY);
 	if(fds == -1) {
@@ -110,23 +116,49 @@ int fda_init(struct fda_state* state) {
 		return 3;
 		
 	/* set blocking */
-	if(set_blocking (fds, 1))
+	if(set_blocking (fds, 0))
 		return 5;
 
-	state->handle=(void*)malloc(sizeof(int));
-	memcpy(state->handle, &fds, sizeof(int));
+	ptr =(struct fda_fd*) malloc(sizeof(struct fda_fd));
+	ptr->fd=fds;
+
+	state->handle=(void*)ptr;
 	return 0;
 }
 
+static int _fda_do_select(int fd) {
+	struct timeval timeout;
+	int retval;
+	fd_set rfds;
+	// wait up to 1 second
+	timeout.tv_sec=1;
+	timeout.tv_usec=0;
+    /* Watch fd to see when it has input. */
+    FD_ZERO(&rfds);
+    FD_SET(fd, &rfds);
+	retval = select(fd+1, &rfds, NULL, NULL, &timeout);
+
+	if(retval < 0) {
+		perror("select()\n");
+		return retval;
+	} else if (retval == 0) {
+		print_msg("select () timeout\n");
+	} else {
+		print_msg("select () data ready\n");
+	}
+	return 0;
+}
 
 int fda_read(struct fda_state* state, unsigned char * buff, int n) {
-	int r = -1, fds = *((int*)state->handle);
+	struct fda_fd *ptr=(struct fda_fd *)state->handle;
+	int r = -1, fds = ptr->fd;
 	r = read(fds, buff, n);
 	if(r == -1) {
 		if(errno == EAGAIN) {
 			errno = 0;
-			/* sleep a few millis until data is ready */
-			usleep(25000);
+			r = 0;
+			if(_fda_do_select(fds))
+				r = -8;
 		} else {
 			perror("Could not read data from TTY");
 			return -8;
@@ -136,19 +168,23 @@ int fda_read(struct fda_state* state, unsigned char * buff, int n) {
 }
 
 int fda_wait(struct fda_state* state) {
-	int fds = *((int*)state->handle);
+	struct fda_fd *ptr=(struct fda_fd *)state->handle;
+	int fds = ptr->fd;
 	print_msg("Waiting...\n");
 	/* wait for an answer... Actually I don't listen to any events. just flush buffers and wait a few millis. */
 	if(tcflush(fds, TCOFLUSH) == -1) {
 		perror("Error sending cmd to TTY");
 		return -6;
 	}
-	usleep(250000);
+	if(_fda_do_select(fds))
+		return -6;
 	return 0;
 }
 
 int fda_write(struct fda_state* state, const unsigned char * buff, int n) {
-	int w = -1, fds = *((int*)state->handle);
+	struct fda_fd *ptr=(struct fda_fd *)state->handle;
+	int fds = ptr->fd;
+	int w = -1;
 	w = write(fds, buff, n);
 	if(w == -1) {
 		perror("Error sending cmd to TTY");
@@ -158,8 +194,10 @@ int fda_write(struct fda_state* state, const unsigned char * buff, int n) {
 }
 
 int fda_close(struct fda_state*state) {
-	int fds = *((int*)state->handle);
-	free(state->handle);
+	struct fda_fd *ptr=(struct fda_fd *)state->handle;
+	int fds = ptr->fd;
+	free(ptr);
+	state->handle=NULL;
 
 	/* close the serial port */
 	if (close(fds) == -1) {

@@ -2,3 +2,5 @@
 /.project
 /.cproject
 /.settings/
+/obj/
+/fda-downloader

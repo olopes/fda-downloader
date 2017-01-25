@@ -405,11 +405,15 @@ static int fda_send_cmd(struct fda_state* state) {
 				if (r < 0) {
 					print_msg("Error reading %s\n", state->tty_device);
 					return 12;
+				} else if (r == 0) {
+					/* no data, nothing to do, loop */
+					print_msg("no data...\n");
+				} else {
+					buf += r;
+					n += r;
+					printf("%d -> %u/%u (%u%%)\n", r, n,total,n*100/total);
+					flush_msgs();
 				}
-				buf += r;
-				n += r;
-				printf("%d -> %u/%u (%u%%)\n", r, n,total,n*100/total);
-				flush_msgs();
 			}
 		}
 	}
