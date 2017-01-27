@@ -58,4 +58,4 @@ $(ODIR):
 	mkdir -p $(ODIR)
 
 clean:
-	rm -f $(ODIR)/*.o *~ core src/*~ $(EXEFILE)
+	rm -fr $(ODIR) *~ core src/*~ fda-downloader fda-downloader.exe fda-dummy fda-dummy.exe
