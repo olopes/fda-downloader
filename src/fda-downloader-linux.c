@@ -152,13 +152,13 @@ static int _fda_do_select(int fd) {
 int fda_read(struct fda_state* state, unsigned char * buff, int n) {
 	struct fda_fd *ptr=(struct fda_fd *)state->handle;
 	int r = -1, fds = ptr->fd;
+	if(_fda_do_select(fds))
+		return -8;
 	r = read(fds, buff, n);
 	if(r == -1) {
 		if(errno == EAGAIN) {
 			errno = 0;
 			r = 0;
-			if(_fda_do_select(fds))
-				r = -8;
 		} else {
 			perror("Could not read data from TTY");
 			return -8;
@@ -167,7 +167,7 @@ int fda_read(struct fda_state* state, unsigned char * buff, int n) {
 	return r;
 }
 
-int fda_wait(struct fda_state* state) {
+int fda_flush(struct fda_state* state) {
 	struct fda_fd *ptr=(struct fda_fd *)state->handle;
 	int fds = ptr->fd;
 	print_msg("Waiting...\n");
@@ -176,8 +176,6 @@ int fda_wait(struct fda_state* state) {
 		perror("Error sending cmd to TTY");
 		return -6;
 	}
-	if(_fda_do_select(fds))
-		return -6;
 	return 0;
 }
 

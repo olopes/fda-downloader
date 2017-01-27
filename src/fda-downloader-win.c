@@ -34,19 +34,24 @@ int fda_init(struct fda_state* state) {
 	memset(device, 0, sizeof(char)*_DEV_NAME_SIZE);
 	snprintf(device, _DEV_NAME_SIZE, "\\\\.\\%s", state->tty_device);
 
-	hComm = CreateFile(device,                //port name
-			GENERIC_READ | GENERIC_WRITE,     //Read/Write
-			0,                                // No Sharing
-			NULL,                             // No Security
-			OPEN_EXISTING,                    // Open existing port only
-			FILE_ATTRIBUTE_NORMAL,            // Non Overlapped I/O
-			NULL);                            // Null for Comm Devices
+	print_msg("Opening COM port %s\n", device);
+	hComm = CreateFile(device,                /* port name               */
+			GENERIC_READ | GENERIC_WRITE,     /* Read/Write              */
+			0,                                /* No Sharing              */
+			NULL,                             /* No Security             */
+			OPEN_EXISTING,                    /* Open existing port only */
+			FILE_ATTRIBUTE_NORMAL,            /* Non Overlapped I/O      */
+			NULL);                            /* Null for Comm Devices   */
 
 	if (hComm == INVALID_HANDLE_VALUE) {
 		print_msg("Error opening device %s\n", state->tty_device);
 		return 1;
 	}
 
+	print_msg("Purging COM port\n");
+	PurgeComm (hComm, PURGE_TXABORT | PURGE_TXCLEAR | PURGE_RXABORT | PURGE_RXCLEAR);
+
+	print_msg("Getting COM parameter\n");
 	// Set device parameters (38400 baud, 1 start bit,
 	// 1 stop bit, no parity)
 	dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
@@ -57,6 +62,7 @@ int fda_init(struct fda_state* state) {
 		return 2;
 	}
 
+	print_msg("Setting COM parameter\n");
 	dcbSerialParams.BaudRate = CBR_19200;
 	dcbSerialParams.ByteSize = 8;
 	dcbSerialParams.StopBits = ONESTOPBIT; // or TWOSTOPBITS?
@@ -68,11 +74,19 @@ int fda_init(struct fda_state* state) {
 		return 3;
 	}
 
-	// Set COM port timeout settings - 0.5s like the linux one
-	timeouts.ReadIntervalTimeout = 500;
-	timeouts.ReadTotalTimeoutConstant = 500;
-	timeouts.ReadTotalTimeoutMultiplier = 10;
-	timeouts.WriteTotalTimeoutConstant = 500;
+	/* according to docs:
+	 *
+	 * A value of MAXDWORD, combined with zero values for both the
+	 * ReadTotalTimeoutConstant and ReadTotalTimeoutMultiplier members,
+	 * specifies that the read operation is to return immediately with
+	 * the number of characters that have already been received, even
+	 * if no characters have been received.
+	 */
+	print_msg("Setting COM timeouts\n");
+	timeouts.ReadIntervalTimeout = MAXDWORD;
+	timeouts.ReadTotalTimeoutConstant = 0;
+	timeouts.ReadTotalTimeoutMultiplier = 0;
+	timeouts.WriteTotalTimeoutConstant = 0;
 	timeouts.WriteTotalTimeoutMultiplier = 10;
 	if(SetCommTimeouts(hComm, &timeouts) == 0)
 	{
@@ -82,6 +96,7 @@ int fda_init(struct fda_state* state) {
 	}
 
 	// setup a RX event
+	print_msg("Setting COM maskr\n");
 	if(SetCommMask(hComm, EV_RXCHAR) == 0) {
 		print_msg("Failed to set RX event\n");
 		return 5;
@@ -96,20 +111,22 @@ int fda_init(struct fda_state* state) {
 int fda_read(struct fda_state* state, unsigned char * buff, int n) {
 	HANDLE hComm = *((HANDLE*)state->handle);
 	DWORD dwEventMask, lastErr, r;
+
+	/* wait for data to become available */
+	if(WaitCommEvent(hComm, &dwEventMask, NULL) == 0) {
+		print_msg("Error waiting for RX event\n");
+		return -7;
+	}
 	
 	r = -1;
-	if (ReadFile(hComm,      // Handle of the Serial port
-			buff,            // buffer
-			n,               // bytes to read
-			&r,              // Number of bytes read
+	if (ReadFile(hComm,      /* Handle of the Serial port  */
+			buff,            /* buffer                     */
+			n,               /* bytes to read              */
+			&r,              /* Number of bytes read       */
 			NULL) == 0) {
 		lastErr = GetLastError();
 		if (lastErr == ERROR_IO_PENDING) {
-			// sleep/wait until data is available
-			if(WaitCommEvent(hComm, &dwEventMask, NULL) == 0) {
-				print_msg( "Error waiting for RX event\n");
-				return -7;
-			}
+			return 0;
 		} else if(lastErr != ERROR_SUCCESS) {
 			char mbuf[256];
 			FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, lastErr,
@@ -122,14 +139,8 @@ int fda_read(struct fda_state* state, unsigned char * buff, int n) {
 	return (int)r;
 }
 
-int fda_wait(struct fda_state* state) {
-	HANDLE hComm = *((HANDLE*)state->handle);
-	DWORD dwEventMask;
-	/* wait for an answer... */
-	if(WaitCommEvent(hComm, &dwEventMask, NULL) == 0) {
-		print_msg("Error waiting for RX event\n");
-		return -7;
-	}
+int fda_flush(struct fda_state* state) {
+	/* do nothing */
 	return 0;
 }
 

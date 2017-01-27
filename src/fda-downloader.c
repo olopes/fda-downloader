@@ -325,7 +325,7 @@ static int fda_send_cmd(struct fda_state* state) {
 	print_msg("%d bytes written\n", w);
 
 	// Wait for answer
-	if(fda_wait(state)) {
+	if(fda_flush(state)) {
 		print_msg("Error waiting for RX eventv");
 		return 7;
 	}
@@ -412,7 +412,7 @@ static int fda_send_cmd(struct fda_state* state) {
 					buf += r;
 					n += r;
 					printf("%d -> %u/%u (%u%%)\n", r, n,total,n*100/total);
-					flush_msgs();
+					fflush(stdout);
 				}
 			}
 		}

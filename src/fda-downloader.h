@@ -48,11 +48,11 @@ extern int fda_init(struct fda_state*);
 extern int fda_read(struct fda_state*, unsigned char * buff, int n);
 
 /**
- * Waits until data is ready
+ * Flush command sent to altimeter device
  *
  * Returns 0 if success
  */
-extern int fda_wait(struct fda_state*);
+extern int fda_flush(struct fda_state*);
 
 /**
  * Write 'n' chars from 'buff' into altimeter.
