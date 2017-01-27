@@ -20,29 +20,40 @@
 #include "fda-downloader.h"
 
 /* API FUNCTIONS */
-const char *TTY_DEVICE="dummy";
+const char *TTY_DEVICE="sample.fda";
 
 int fda_init(struct fda_state* state) {
-	print_msg("Not implemented\n");
-	return -1;
+	FILE *file;
+	file = fopen(state->tty_device, "rb");
+	if(!file) {
+		perror("failed to open file");
+		return 1;
+	}
+	state->handle = file;
+	return 0;
 }
 
 int fda_read(struct fda_state* state, unsigned char * buff, int n) {
-	print_msg("Not implemented\n");
-	return -1;
+	FILE *file = (FILE*)state->handle;
+	int r;
+	r = fread(buff, sizeof(unsigned char), n, file);
+	if(r!=n && ferror(file)) {
+		/* error occurred */
+		return -1;
+	}
+	return r;
 }
 
 int fda_write(struct fda_state* state, const unsigned char * buff, int n) {
-	print_msg("Not implemented\n");
-	return -1;
+	return n;
 }
 
-int fda_wait(struct fda_state* state) {
-	print_msg("Not implemented\n");
-	return -1;
+int fda_flush(struct fda_state* state) {
+	return 0;
 }
 
 int fda_close(struct fda_state* state) {
-	print_msg("Not implemented\n");
-	return -1;
+	FILE *file = (FILE*)state->handle;
+	fclose(file);
+	return 0;
 }

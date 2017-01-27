@@ -3,4 +3,10 @@
 /.cproject
 /.settings/
 /obj/
+/*.fda
+/*.hka
+/*.csv
 /fda-downloader
+/fda-downloader.exe
+/fda-dummy
+/fda-dummy.exe
